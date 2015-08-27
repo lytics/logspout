@@ -90,6 +90,11 @@ The standard distribution of logspout comes with all modules defined in this rep
  * logspout-redis...
  * [logspout-logstash](https://github.com/looplab/logspout-logstash)
 
+### Configured to be embedded
+ * [lytics/logspoutloges](https://github.com/lytics/logspoutloges)
+  * Service bypasses the need for using [Logstash](https://www.elastic.co/products/logstash) as a log jam for your monitoring system. Logspoutloges uses [elastigo](https://github.com/mattbaird/elastigo)'s bulk indexer to write logs strait to Elasticsearch with the same index name formatting as Logstash so it plays nicely with Kibana.
+
+
 ## Contributing
 
 As usual, pull requests are welcome. You can also propose releases by opening a PR against the `release` branch from `master`. Please be sure to bump the version and update `CHANGELOG.md` and include your changelog text in the PR body.
@@ -103,4 +108,3 @@ This project was made possible by [DigitalOcean](http://digitalocean.com) and [D
 ## License
 
 BSD
-<img src="https://ga-beacon.appspot.com/UA-58928488-2/logspout/readme?pixel" />
