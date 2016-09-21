@@ -137,44 +137,44 @@
 		{
 			"checksumSHA1": "T2hhqaSIDtpGoHUujOcqmgMWytU=",
 			"path": "github.com/gliderlabs/logspout/adapters/raw",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "q07U2a3uqqEpFCPxDE8WMKRhA5M=",
 			"path": "github.com/gliderlabs/logspout/adapters/syslog",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "B2EgaPHWMlI3w4ovoETGjer8j8c=",
 			"path": "github.com/gliderlabs/logspout/httpstream",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "GsyueMx6QMu5ioqR47xT/q1C30A=",
 			"path": "github.com/gliderlabs/logspout/router",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "hAm8WOysqb4bfbLJi7ni39JN7EQ=",
 			"path": "github.com/gliderlabs/logspout/routesapi",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "NiD4Itpti6huWeOO38nvhv2FzGI=",
 			"path": "github.com/gliderlabs/logspout/transports/tcp",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "+UTlfyPGTSNM4ZrKgWyPfj/V9EA=",
 			"path": "github.com/gliderlabs/logspout/transports/udp",
-			"revision": "a71288259dcbb44c215f917f221d2844a53f4ebe",
-			"revisionTime": "2015-08-28T00:15:05Z"
+			"revision": "8dbf8d3798a72c4531b4271f7fc0a53e4de1526a",
+			"revisionTime": "2016-09-21T21:21:35Z"
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
@@ -201,10 +201,10 @@
 			"revisionTime": "2016-09-21T17:05:18Z"
 		},
 		{
-			"checksumSHA1": "mj/VYXDSBxuJSR5ShAwtRx95zgM=",
+			"checksumSHA1": "N6FoA+X1oSeradjO7izj5V45tzs=",
 			"path": "github.com/lytics/logspoutloges",
-			"revision": "cac46db28b7423878b502d0bb5b7adc3bb1357d5",
-			"revisionTime": "2016-09-21T21:15:52Z"
+			"revision": "e20535f9b5e8518d4a4222ccbe2613c82bb1c769",
+			"revisionTime": "2016-09-21T23:10:03Z"
 		},
 		{
 			"checksumSHA1": "G8uyRShoW5tFnQL5i5tW6wthMVA=",
