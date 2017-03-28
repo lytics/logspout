@@ -53,6 +53,15 @@ func normalID(id string) string {
 	return id
 }
 
+func logDriverSupported(container *docker.Container) bool {
+	switch container.HostConfig.LogConfig.Type {
+	case "json-file", "journald":
+		return true
+	default:
+		return false
+	}
+}
+
 func ignoreContainer(container *docker.Container) bool {
 	for _, kv := range container.Config.Env {
 		kvp := strings.SplitN(kv, "=", 2)
@@ -60,7 +69,17 @@ func ignoreContainer(container *docker.Container) bool {
 			return true
 		}
 	}
+	excludeLabel := getopt("EXCLUDE_LABEL", "")
+	if value, ok := container.Config.Labels[excludeLabel]; ok {
+		return len(excludeLabel) > 0 && strings.ToLower(value) == "true"
+	}
 	return false
+}
+
+func getInactivityTimeoutFromEnv() time.Duration {
+	inactivityTimeout, err := time.ParseDuration(getopt("INACTIVITY_TIMEOUT", "0"))
+	assert(err, "Couldn't parse env var INACTIVITY_TIMEOUT. See https://golang.org/pkg/time/#ParseDuration for valid format.")
+	return inactivityTimeout
 }
 
 type update struct {
@@ -80,16 +99,28 @@ func (p *LogsPump) Name() string {
 }
 
 func (p *LogsPump) Setup() error {
-	client, err := docker.NewClient(
-		getopt("DOCKER_HOST", "unix:///var/run/docker.sock"))
-	if err != nil {
-		return err
+	var err error
+	p.client, err = docker.NewClientFromEnv()
+	return err
+}
+
+func (p *LogsPump) rename(event *docker.APIEvents) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	container, err := p.client.InspectContainer(event.ID)
+	assert(err, "pump")
+	pump, ok := p.pumps[normalID(event.ID)]
+	if !ok {
+		debug("pump.rename(): ignore: pump not found, state:", container.State.StateString())
+		return
 	}
-	p.client = client
-	return nil
+	pump.container.Name = container.Name
 }
 
 func (p *LogsPump) Run() error {
+	inactivityTimeout := getInactivityTimeoutFromEnv()
+	debug("pump.Run(): using inactivity timeout: ", inactivityTimeout)
+
 	containers, err := p.client.ListContainers(docker.ListContainersOptions{})
 	if err != nil {
 		return err
@@ -98,7 +129,7 @@ func (p *LogsPump) Run() error {
 		p.pumpLogs(&docker.APIEvents{
 			ID:     normalID(listing.ID),
 			Status: "start",
-		}, false)
+		}, false, inactivityTimeout)
 	}
 	events := make(chan *docker.APIEvents)
 	err = p.client.AddEventListener(events)
@@ -106,10 +137,12 @@ func (p *LogsPump) Run() error {
 		return err
 	}
 	for event := range events {
-		debug("pump: event:", normalID(event.ID), event.Status)
+		debug("pump.Run() event:", normalID(event.ID), event.Status)
 		switch event.Status {
 		case "start", "restart":
-			go p.pumpLogs(event, true)
+			go p.pumpLogs(event, true, inactivityTimeout)
+		case "rename":
+			go p.rename(event)
 		case "die":
 			go p.update(event)
 		}
@@ -117,49 +150,84 @@ func (p *LogsPump) Run() error {
 	return errors.New("docker event stream closed")
 }
 
-func (p *LogsPump) pumpLogs(event *docker.APIEvents, backlog bool) {
+func (p *LogsPump) pumpLogs(event *docker.APIEvents, backlog bool, inactivityTimeout time.Duration) {
 	id := normalID(event.ID)
 	container, err := p.client.InspectContainer(id)
 	assert(err, "pump")
 	if container.Config.Tty {
-		debug("pump:", id, "ignored: tty enabled")
+		debug("pump.pumpLogs():", id, "ignored: tty enabled")
 		return
 	}
 	if ignoreContainer(container) {
-		debug("pump:", id, "ignored: environ ignore")
+		debug("pump.pumpLogs():", id, "ignored: environ ignore")
 		return
 	}
-	var tail string
+	if !logDriverSupported(container) {
+		debug("pump.pumpLogs():", id, "ignored: log driver not supported")
+		return
+	}
+
+	var sinceTime time.Time
 	if backlog {
-		tail = "all"
+		sinceTime = time.Unix(0, 0)
 	} else {
-		tail = "0"
+		sinceTime = time.Now()
+	}
+
+	p.mu.Lock()
+	if _, exists := p.pumps[id]; exists {
+		p.mu.Unlock()
+		debug("pump.pumpLogs():", id, "pump exists")
+		return
 	}
 	outrd, outwr := io.Pipe()
 	errrd, errwr := io.Pipe()
-	p.mu.Lock()
 	p.pumps[id] = newContainerPump(container, outrd, errrd)
 	p.mu.Unlock()
 	p.update(event)
-	debug("pump:", id, "started")
 	go func() {
-		err := p.client.Logs(docker.LogsOptions{
-			Container:    id,
-			OutputStream: outwr,
-			ErrorStream:  errwr,
-			Stdout:       true,
-			Stderr:       true,
-			Follow:       true,
-			Tail:         tail,
-		})
-		if err != nil {
-			debug("pump:", id, "stopped:", err)
+		for {
+			debug("pump.pumpLogs():", id, "started")
+			err := p.client.Logs(docker.LogsOptions{
+				Container:         id,
+				OutputStream:      outwr,
+				ErrorStream:       errwr,
+				Stdout:            true,
+				Stderr:            true,
+				Follow:            true,
+				Tail:              "all",
+				Since:             sinceTime.Unix(),
+				InactivityTimeout: inactivityTimeout,
+			})
+			if err != nil {
+				debug("pump.pumpLogs():", id, "stopped with error:", err)
+			} else {
+				debug("pump.pumpLogs():", id, "stopped")
+			}
+
+			sinceTime = time.Now()
+			if err == docker.ErrInactivityTimeout {
+				sinceTime = sinceTime.Add(-inactivityTimeout)
+			}
+
+			container, err := p.client.InspectContainer(id)
+			if err != nil {
+				_, four04 := err.(*docker.NoSuchContainer)
+				if !four04 {
+					assert(err, "pump")
+				}
+			} else if container.State.Running {
+				continue
+			}
+
+			debug("pump.pumpLogs():", id, "dead")
+			outwr.Close()
+			errwr.Close()
+			p.mu.Lock()
+			delete(p.pumps, id)
+			p.mu.Unlock()
+			return
 		}
-		outwr.Close()
-		errwr.Close()
-		p.mu.Lock()
-		delete(p.pumps, id)
-		p.mu.Unlock()
 	}()
 }
 
@@ -168,11 +236,11 @@ func (p *LogsPump) update(event *docker.APIEvents) {
 	defer p.mu.Unlock()
 	pump, pumping := p.pumps[normalID(event.ID)]
 	if pumping {
-		for r, _ := range p.routes {
+		for r := range p.routes {
 			select {
 			case r <- &update{event, pump}:
 			case <-time.After(time.Second * 1):
-				debug("pump: route timeout, dropping")
+				debug("pump.update(): route timeout, dropping")
 				defer delete(p.routes, r)
 			}
 		}
@@ -191,7 +259,8 @@ func (p *LogsPump) Route(route *Route, logstream chan *Message) {
 	for _, pump := range p.pumps {
 		if route.MatchContainer(
 			normalID(pump.container.ID),
-			normalName(pump.container.Name)) {
+			normalName(pump.container.Name),
+			pump.container.Config.Labels) {
 
 			pump.add(logstream, route)
 			defer pump.remove(logstream)
@@ -212,7 +281,8 @@ func (p *LogsPump) Route(route *Route, logstream chan *Message) {
 			case "start", "restart":
 				if route.MatchContainer(
 					normalID(event.pump.container.ID),
-					normalName(event.pump.container.Name)) {
+					normalName(event.pump.container.Name),
+					event.pump.container.Config.Labels) {
 
 					event.pump.add(logstream, route)
 					defer event.pump.remove(logstream)
@@ -247,7 +317,7 @@ func newContainerPump(container *docker.Container, stdout, stderr io.Reader) *co
 			line, err := buf.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					debug("pump:", normalID(container.ID), source+":", err)
+					debug("pump.newContainerPump():", normalID(container.ID), source+":", err)
 				}
 				return
 			}
@@ -274,7 +344,7 @@ func (cp *containerPump) send(msg *Message) {
 		select {
 		case logstream <- msg:
 		case <-time.After(time.Second * 1):
-			debug("pump: send timeout, closing")
+			debug("pump.send(): send timeout, closing")
 			// normal call to remove() triggered by
 			// route.Closer() may not be able to grab
 			// lock under heavy load, so we delete here

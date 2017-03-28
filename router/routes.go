@@ -26,6 +26,7 @@ type RouteManager struct {
 	persistor RouteStore
 	routes    map[string]*Route
 	routing   bool
+	wg        sync.WaitGroup
 }
 
 func (rm *RouteManager) Load(persistor RouteStore) error {
@@ -97,6 +98,8 @@ func (rm *RouteManager) AddFromUri(uri string) error {
 				r.FilterID = value
 			case "filter.name":
 				r.FilterName = value
+			case "filter.labels":
+				r.FilterLabels = strings.Split(value, ",")
 			case "filter.sources":
 				r.FilterSources = strings.Split(value, ",")
 			default:
@@ -162,15 +165,24 @@ func (rm *RouteManager) RoutingFrom(containerID string) bool {
 func (rm *RouteManager) Run() error {
 	rm.Lock()
 	for _, route := range rm.routes {
-		go rm.route(route)
+		rm.wg.Add(1)
+		go func(route *Route) {
+			rm.route(route)
+			rm.wg.Done()
+		}(route)
 	}
 	rm.routing = true
 	rm.Unlock()
-	select {}
+	rm.wg.Wait()
+	// Temp fix to allow logspout to run without routes defined.
+	if len(rm.routes) == 0 {
+		select {}
+	}
+	return nil
 }
 
 func (rm *RouteManager) Name() string {
-	return ""
+	return "routes"
 }
 
 func (rm *RouteManager) Setup() error {

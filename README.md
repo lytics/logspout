@@ -1,7 +1,7 @@
 # logspout
 
 [![CircleCI](https://img.shields.io/circleci/project/gliderlabs/logspout/release.svg)](https://circleci.com/gh/gliderlabs/logspout)
-[![Docker Hub](https://img.shields.io/badge/docker-ready-blue.svg)](https://registry.hub.docker.com/u/gliderlabs/logspout/)
+[![Docker pulls](https://img.shields.io/docker/pulls/gliderlabs/logspout.svg)](https://hub.docker.com/r/gliderlabs/logspout/)
 [![IRC Channel](https://img.shields.io/badge/irc-%23gliderlabs-blue.svg)](https://kiwiirc.com/client/irc.freenode.net/#gliderlabs)
 
 > Docker Hub automated builds for `gliderlabs/logspout:latest` and `progrium/logspout:latest` are now pointing to the `release` branch. For `master`, use `gliderlabs/logspout:master`. Individual versions are also available as saved images in [releases](https://github.com/gliderlabs/logspout/releases).
@@ -14,7 +14,7 @@ For now it only captures stdout and stderr, but a module to collect container sy
 
 ## Getting logspout
 
-Logspout is a very small Docker container (14MB virtual, based on [Alpine](https://github.com/gliderlabs/docker-alpine)). Pull the latest release from the index:
+Logspout is a very small Docker container (15.2MB virtual, based on [Alpine](https://github.com/gliderlabs/docker-alpine)). Pull the latest release from the index:
 
 	$ docker pull gliderlabs/logspout:latest
 
@@ -26,14 +26,14 @@ You can also download and load a specific version:
 
 #### Route all container output to remote syslog
 
-The simplest way to use logspout is to just take all logs and ship to a remote syslog. Just pass a syslog URI (or several comma separated URIs) as the command. Also, we always mount the Docker Unix socket with `-v` to `/tmp/docker.sock`:
+The simplest way to use logspout is to just take all logs and ship to a remote syslog. Just pass a syslog URI (or several comma separated URIs) as the command. Here we show use of the `tls` encrypted transport option in the URI. Also, we always mount the Docker Unix socket with `-v` to `/var/run/docker.sock`:
 
 	$ docker run --name="logspout" \
-		--volume=/var/run/docker.sock:/tmp/docker.sock \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
 		gliderlabs/logspout \
-		syslog://logs.papertrailapp.com:55555
+		syslog+tls://logs.papertrailapp.com:55555
 
-logspout will gather logs from other containers that are started **without the `-t` option**. 
+logspout will gather logs from other containers that are started **without the `-t` option** and are configured with a logging driver that works with `docker logs` (`journald` and `json-file`).
 
 To see what data is used for syslog messages, see the [syslog adapter](http://github.com/gliderlabs/logspout/blob/master/adapters) docs.
 
@@ -41,14 +41,58 @@ To see what data is used for syslog messages, see the [syslog adapter](http://gi
 
 You can tell logspout to ignore specific containers by setting an environment variable when starting your container, like so:-
 
-        $ docker run -d -e 'LOGSPOUT=ignore' image
+    $ docker run -d -e 'LOGSPOUT=ignore' image
+
+Or, by adding a label which you define by setting an environment variable when running logspout:
+
+    $ docker run --name="logspout" \
+        -e EXCLUDE_LABEL=logspout.exclude \
+        --volume=/var/run/docker.sock:/var/run/docker.sock \
+        gliderlabs/logspout
+    $ docker run -d --label logspout.exclude=true image
+
+#### Including specific containers
+
+You can tell logspout to only include certain containers by setting filter parameters on the URI:
+
+	$ docker run \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
+		gliderlabs/logspout \
+		raw://192.168.10.10:5000?filter.name=*_db
+		
+	$ docker run \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
+		gliderlabs/logspout \
+		raw://192.168.10.10:5000?filter.id=3b6ba57db54a
+		
+	$ docker run \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
+		gliderlabs/logspout \
+		raw://192.168.10.10:5000?filter.sources=stdout%2Cstderr
+	
+	# Forward logs from containers with both label 'a' starting with 'x', and label 'b' ending in 'y'.
+	$ docker run \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
+		gliderlabs/logspout \
+		raw://192.168.10.10:5000?filter.labels=a:x*%2Cb:*y
+
+Note that you must URL-encode parameter values such as the comma in `filter.sources` and `filter.labels`.
+
+#### Multiple logging destinations
+
+You can route to multiple destinations by comma-separating the URIs:
+
+	$ docker run \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
+		gliderlabs/logspout \
+		raw://192.168.10.10:5000?filter.name=*_db,syslog+tls://logs.papertrailapp.com:55555?filter.name=*_app
 
 #### Inspect log streams using curl
 
 Using the [httpstream module](http://github.com/gliderlabs/logspout/blob/master/httpstream), you can connect with curl to see your local aggregated logs in realtime. You can do this without setting up a route URI.
 
 	$ docker run -d --name="logspout" \
-		--volume=/var/run/docker.sock:/tmp/docker.sock \
+		--volume=/var/run/docker.sock:/var/run/docker.sock \
 		--publish=127.0.0.1:8000:80 \
 		gliderlabs/logspout
 	$ curl http://127.0.0.1:8000/logs
@@ -71,6 +115,10 @@ Routes are stored on disk, so by default routes are ephemeral. You can mount a v
 
 See [routesapi module](http://github.com/gliderlabs/logspout/blob/master/routesapi) for all options.
 
+#### Detecting timeouts in Docker log streams
+
+Logspout relies on the Docker API to retrieve container logs. A failure in the API may cause a log stream to hang. Logspout can detect and restart inactive Docker log streams. Use the environment variable `INACTIVITY_TIMEOUT` to enable this feature. E.g.: `INACTIVITY_TIMEOUT=1m` for a 1-minute threshold.
+
 ## Modules
 
 The standard distribution of logspout comes with all modules defined in this repository. You can remove or add new modules with custom builds of logspout. Just edit the `modules.go` file and do a `docker build`.
@@ -79,16 +127,28 @@ The standard distribution of logspout comes with all modules defined in this rep
 
  * adapters/raw
  * adapters/syslog
- * conntypes/tcp
- * conntypes/udp
+ * transports/tcp
+ * transports/tls
+ * transports/udp
  * httpstream
  * routesapi
 
 ### Third-party modules
 
- * logspout-kafka...
+ * [logspout-kafka](https://github.com/gettyimages/logspout-kafka)
  * logspout-redis...
  * [logspout-logstash](https://github.com/looplab/logspout-logstash)
+ * [logspout-redis-logstash](https://github.com/rtoma/logspout-redis-logstash)
+
+### Loggly support
+
+Use logspout to stream your docker logs to Loggly via the [Loggly syslog endpoint](https://www.loggly.com/docs/streaming-syslog-without-using-files/).  
+```
+$ docker run --name logspout -d --volume=/var/run/docker.sock:/var/run/docker.sock \
+    -e SYSLOG_STRUCTURED_DATA="<Loggly API Key>@41058 tag=\"some tag name\"" \
+    gliderlabs/logspout \
+    syslog+tcp://logs-01.loggly.com:514
+```
 
 ### Configured to be embedded
  * [lytics/logspoutloges](https://github.com/lytics/logspoutloges)
