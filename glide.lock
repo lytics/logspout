@@ -39,7 +39,7 @@ imports:
 - name: github.com/lytics/logrus
   version: 8d125bf3956de0f953620df54a1b95a52b55353b
 - name: github.com/lytics/logspoutloges
-  version: 486a3b9f09d44da39789267c839bafe1cd1548cb
+  version: c17b47744a762869a37a33cdb605f95275683056
 - name: github.com/mattbaird/elastigo
   version: d0839da905fef1221e2b19ddfaf34985add62e10
   subpackages:
