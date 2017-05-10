@@ -61,7 +61,7 @@ func main() {
 			fmt.Fprintf(w, "#   %s\t%s\t%s\t%s\t%s\n",
 				route.Adapter,
 				route.Address,
-				route.FilterID+route.FilterName+strings.Join(route.FilterLabels, ","),
+				route.FilterID+route.FilterName,
 				strings.Join(route.FilterSources, ","),
 				route.Options)
 		}
