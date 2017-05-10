@@ -8,3 +8,4 @@ import:
 - package: github.com/mattbaird/elastigo
   subpackages:
   - lib
+- package: github.com/lytics/logspoutloges

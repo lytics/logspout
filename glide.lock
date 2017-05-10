@@ -1,5 +1,5 @@
-hash: 2e29bee39ec5fa651fe59cda3ad17b605f87f491667407e8ad75d7a92138d60a
-updated: 2017-05-10T13:16:05.665532992-07:00
+hash: b27117e1814faffaf688d21b970c772869807bf7e1de3202fb0daa50205add23
+updated: 2017-05-10T15:30:22.119203392-07:00
 imports:
 - name: github.com/araddon/gou
   version: f94c6a9a3a93253d1a556bd4959dc6f0f5e67cb4
@@ -39,7 +39,7 @@ imports:
 - name: github.com/lytics/logrus
   version: 8d125bf3956de0f953620df54a1b95a52b55353b
 - name: github.com/lytics/logspoutloges
-  version: 185402f3b4dd9e099eec24fe1b807f891c8f4092
+  version: 486a3b9f09d44da39789267c839bafe1cd1548cb
 - name: github.com/mattbaird/elastigo
   version: d0839da905fef1221e2b19ddfaf34985add62e10
   subpackages:
