@@ -1,11 +1,12 @@
+FROM golang:1.11.4 as builder
+RUN mkdir /build
+ADD . /build/
+WORKDIR /build
+RUN CGO_ENABLED=0 go build -ldflags "-X main.Version=$1" -o logspout .
+
 FROM alpine:3.8
-ENTRYPOINT ["/bin/logspout"]
+RUN mkdir /app
+COPY --from=builder /build/logspout /app/
 VOLUME /mnt/routes
 EXPOSE 80
-
-COPY . /src
-RUN cd /src && ./build.sh "$(cat VERSION)"
-
-ONBUILD COPY ./build.sh /src/build.sh
-ONBUILD COPY ./modules.go /src/modules.go
-ONBUILD RUN cd /src && chmod +x ./build.sh && sleep 1 && sync && ./build.sh "$(cat VERSION)-custom"
+CMD ["/app/logspout"]
